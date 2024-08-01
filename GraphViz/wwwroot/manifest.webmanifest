@@ -1,6 +1,6 @@
 {
-  "name": "BTetris",
-  "short_name": "BTetris",
+  "name": "GraphViz",
+  "short_name": "GraphViz",
   "id": "./",
   "start_url": "./",
   "display": "standalone",

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>GraphViz</title>
+    <base href="/" />
+    <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body style="margin: auto; background-color: #000000; color: white; font-family: sans-serif; height: 100%; width:100%; overflow: hidden;">
+    <div id="app" class="col-4" style="margin: auto; height: 100%; overflow:hidden;">
+        <div style="margin: 1em; font-size: 12pt;">GraphViz is loading...</div>
+    </div>
+
+    <script src="_framework/blazor.webassembly.js"></script>
+    <script src="_content/Blazor.Extensions.Canvas/blazor.extensions.canvas.js"></script>
+
+    <script>
+
+        function renderJS(timeStamp) {
+            theInstance.invokeMethodAsync('RenderInBlazor', timeStamp);
+            window.requestAnimationFrame(renderJS);
+        }
+
+        function resizeCanvasToFitWindow() {
+            var holder = document.getElementById('canvasHolder');
+            var canvas = holder.querySelector('canvas');
+            if (canvas) {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                theInstance.invokeMethodAsync('ResizeInBlazor', canvas.width, canvas.height);
+            }
+        }
+
+        window.initRenderJS = (instance) => {
+            window.theInstance = instance;
+            window.addEventListener("resize", resizeCanvasToFitWindow);
+            resizeCanvasToFitWindow();
+            window.requestAnimationFrame(renderJS);
+        };
+
+        document.getElementById('brandonContainer').focus();
+
+    </script>
+</body>
+</html>
