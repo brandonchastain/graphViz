@@ -1,0 +1,156 @@
+﻿@page "/"
+
+@using Blazor.Extensions
+@using Blazor.Extensions.Canvas.Canvas2D
+@using Microsoft.JSInterop
+@using System.Text
+@using Tetris
+@inject IJSRuntime JsRuntime
+@inject ILogger<Tetris> logger
+
+    <div id="canvasHolder" class="col-4" tabindex="1" @onclick="Clicked" @onkeydown="OnKeyDown" @onkeydown:preventDefault="true" style="margin: auto; position: fixed; height: 100%; overflow:hidden; -webkit-tap-highlight-color:transparent; outline:none;" >
+        <BECanvas @ref="_canvasReference"></BECanvas>
+    </div>
+
+@code {
+    private Tetris Game;
+    private ITetrisDrawer Drawer;
+    private Canvas2DContext ctx;
+    protected BECanvasComponent _canvasReference;
+    private DateTimeOffset LastRender;
+    private bool started = false;
+    private bool crashed = false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        this.ctx = await _canvasReference.CreateCanvas2DAsync();
+        await JsRuntime.InvokeAsync<object>("initRenderJS", DotNetObjectReference.Create(this));
+        await base.OnInitializedAsync();
+    }
+
+    public void OnKeyDown(KeyboardEventArgs e)
+    {
+        Game.SendKeyDown(e.Code);
+    }
+
+    public void Clicked(MouseEventArgs e)
+    {
+        var butX = BlazorDrawer.BankButtonPos[0];
+        var butY = BlazorDrawer.BankButtonPos[1];
+        var butW = BlazorDrawer.BankButtonSize[0];
+        var butH = BlazorDrawer.BankButtonSize[1];
+        
+        bool clickedBank = 
+            e.OffsetX >= butX && e.OffsetX <= butX + butW &&
+            e.OffsetY >= butY && e.OffsetY <= butY + butH;
+
+        if (Game.IsOver || crashed || !started)
+        {
+            Game.Reset();
+            Game.Start();
+        }
+        else if (clickedBank)
+        {
+            // bank the piece, same as pressing space.
+            Game.SendKeyDown("Space");
+        }
+
+        started = true;
+        crashed = false;
+    }
+
+    [JSInvokable]
+    public void RightSwipe()
+    {
+        Game.SendKeyDown("ArrowLeft");
+    }
+
+    [JSInvokable]
+    public void LeftSwipe()
+    {
+        Game.SendKeyDown("ArrowRight");
+
+    }
+    [JSInvokable]
+    public void UpSwipe()
+    {
+        Game.SendKeyDown("ArrowUp");
+    }
+    
+    [JSInvokable]
+    public void DownSwipe()
+    {
+        Game.SendKeyDown("ArrowDown");
+    }
+
+    [JSInvokable]
+    public void ResizeInBlazor(double width, double height)
+    {
+        int w = (int)(width) / BlazorDrawer.TileSize;
+        int h = (int)(height / BlazorDrawer.TileSize);
+        int wTiles = Math.Min(10, w);
+        int vTiles = Math.Min(20, h);
+        Game = new Tetris(wTiles, vTiles);
+    }
+
+    [JSInvokable]
+    public async ValueTask RenderInBlazor(float ts)
+    {
+        if (crashed)
+        {
+            return;
+        }
+
+        if (Game == null)
+        {
+            return;
+        }
+
+        Drawer ??= new BlazorDrawer(this.ctx, Game);
+
+        try
+        {
+
+            var timeStamp = DateTimeOffset.FromUnixTimeMilliseconds((long)ts);
+
+            // update game
+            Game.Update(timeStamp);
+
+            // render
+            if (timeStamp - LastRender > TimeSpan.FromMilliseconds(15))
+            {
+                await this.ctx.BeginBatchAsync();
+                await Drawer.Draw();
+                await this.ctx.EndBatchAsync();
+                LastRender = timeStamp;
+            }
+        }
+        catch (Exception ex)
+        {
+            crashed = true;
+            await RenderError(ex.ToString());
+        }
+    }
+
+    private async ValueTask RenderError(string msg)
+    {
+        await this.ctx.BeginBatchAsync();
+        await this.ctx.SetFillStyleAsync("black");
+        await this.ctx.FillRectAsync(10, 550, 200, 200);
+        await this.ctx.SetFontAsync("bold 12px Helvetica");
+        await this.ctx.SetFillStyleAsync("red");
+        var parts = msg.Split("\n");
+        int curRow = 620;
+        foreach (var part in parts)
+        {
+            await this.ctx.FillTextAsync(part, 10, curRow);
+            curRow += 20;
+        }
+        await this.ctx.EndBatchAsync();
+    }
+}
