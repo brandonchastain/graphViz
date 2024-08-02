@@ -4,15 +4,19 @@
 @using Blazor.Extensions.Canvas.Canvas2D
 @using Microsoft.JSInterop
 @using System.Text
+@using GraphViz
+
 @inject IJSRuntime JsRuntime
 
-    <div id="canvasHolder" class="col-4" tabindex="1" @onclick="Clicked" style="margin: auto; position: fixed; height: 100%; overflow:hidden; -webkit-tap-highlight-color:transparent; outline:none;" >
+    <div id="canvasHolder" class="" tabindex="1" @onclick="Onclick" style="margin: auto; height: 100%; -webkit-tap-highlight-color:transparent; outline:none;" >
         <BECanvas @ref="_canvasReference"></BECanvas>
     </div>
 
 @code {
-    private Canvas2DContext ctx;
     protected BECanvasComponent _canvasReference;
+    private Canvas2DContext ctx;
+    private BlazorRenderer renderer;
+    private VizUI ui;
     private bool crashed = false;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -23,19 +27,17 @@
         }
 
         this.ctx = await _canvasReference.CreateCanvas2DAsync();
+        this.renderer = new BlazorRenderer(this.ctx);
+        this.ui = new VizUI();
+
         await JsRuntime.InvokeAsync<object>("initRenderJS", DotNetObjectReference.Create(this));
         await base.OnInitializedAsync();
     }
 
-    public void Clicked(MouseEventArgs e)
-    {
-        // send click to the game
-    }
-
     [JSInvokable]
-    public void ResizeInBlazor(double width, double height)
+    public void Onclick()
     {
-        // send width and height to the game
+        ui.Refresh();
     }
 
     [JSInvokable]
@@ -49,29 +51,12 @@
         try
         {
             var timeStamp = DateTimeOffset.FromUnixTimeMilliseconds((long)ts);
-            // call the renderer
+            await this.renderer.Draw(this.ui.GetTreeToDisplay(timeStamp));
         }
         catch (Exception ex)
         {
             crashed = true;
-            await RenderError(ex.ToString());
+            await this.renderer.RenderError(ex.ToString());
         }
-    }
-
-    private async ValueTask RenderError(string msg)
-    {
-        await this.ctx.BeginBatchAsync();
-        await this.ctx.SetFillStyleAsync("black");
-        await this.ctx.FillRectAsync(10, 550, 200, 200);
-        await this.ctx.SetFontAsync("bold 12px Helvetica");
-        await this.ctx.SetFillStyleAsync("red");
-        var parts = msg.Split("\n");
-        int curRow = 620;
-        foreach (var part in parts)
-        {
-            await this.ctx.FillTextAsync(part, 10, curRow);
-            curRow += 20;
-        }
-        await this.ctx.EndBatchAsync();
     }
 }
