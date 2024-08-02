@@ -1,6 +1,8 @@
 # GraphViz
 Visualizations for graphs and trees algorithms.
 
+
+
 # How to build (and run) from source
 ## Setup
 First, make sure [.NET 8 or later](https://learn.microsoft.com/en-us/dotnet/core/install/) is installed on your computer.
