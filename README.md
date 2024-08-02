@@ -6,7 +6,7 @@ Visualizations for graphs and trees algorithms.
 First, make sure [.NET 8 or later](https://learn.microsoft.com/en-us/dotnet/core/install/) is installed on your computer.
 
 ## How to Run
-Use `dotnet run` command:
+Use the `dotnet run` command:
 
 ```
 cd ./GraphViz/
