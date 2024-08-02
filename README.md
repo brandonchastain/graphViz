@@ -9,7 +9,7 @@ First, make sure [.NET 8 or later](https://learn.microsoft.com/en-us/dotnet/core
 Clone the source code and use the `dotnet run` command to run GraphViz:
 
 ```
-git clone 
+git clone https://github.com/brandonchastain/graphViz.git
 cd graphViz/GraphViz/
 dotnet run
 ```
