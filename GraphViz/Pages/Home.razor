@@ -8,7 +8,20 @@
 
 @inject IJSRuntime JsRuntime
 
-    <div id="canvasHolder" class="" tabindex="1" @onclick="Onclick" style="margin: auto; height: 100%; -webkit-tap-highlight-color:transparent; outline:none;" >
+    <div id="formHolder">
+        <label for="nodeCount">node count</label>
+        <input type="text" @bind="NodeCount" id="nodeCount" name="nodeCount">
+        <label for="nullProb">% chance of null</label>
+        <input type="text" @bind="NullProbPct" id="nullProb" name="nullProb">
+        <label for="artMode">art mode</label>
+        <input type="checkbox" @bind="IsArtModeEnabled" id="artMode" name="artMode">
+        <button type="submit" @onclick="OnSubmit">Submit</button>
+    </div>
+    <div id="canvasHolder"
+        class=""
+        tabindex="1"
+        @onclick="Onclick"
+        style="margin: auto; overflow: auto; height: 10000px; width: 10000px; -webkit-tap-highlight-color:transparent; outline:none;">
         <BECanvas @ref="_canvasReference"></BECanvas>
     </div>
 
@@ -19,6 +32,10 @@
     private VizUI ui;
     private bool crashed = false;
 
+    private int NodeCount { get; set; } = 20;
+    private int NullProbPct { get; set; } = 10;
+    private bool IsArtModeEnabled { get; set; } = false;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender)
@@ -27,11 +44,23 @@
         }
 
         this.ctx = await _canvasReference.CreateCanvas2DAsync();
-        this.renderer = new BlazorRenderer(this.ctx);
-        this.ui = new VizUI();
+        this.renderer = new BlazorRenderer(this.ctx, _canvasReference.Width, _canvasReference.Height);
+        this.ui = new VizUI(NodeCount);
+        await OnSubmit();
 
         await JsRuntime.InvokeAsync<object>("initRenderJS", DotNetObjectReference.Create(this));
         await base.OnInitializedAsync();
+    }
+
+    [JSInvokable]
+    public async Task OnSubmit()
+    {
+        ui.NodeCount = NodeCount;
+        ui.NullProbabilityPct = NullProbPct;
+
+        await renderer.SetArtMode(IsArtModeEnabled);
+
+        ui.Refresh();
     }
 
     [JSInvokable]
@@ -51,7 +80,8 @@
         try
         {
             var timeStamp = DateTimeOffset.FromUnixTimeMilliseconds((long)ts);
-            await this.renderer.Draw(this.ui.GetTreeToDisplay(timeStamp));
+            (var tree, var size) = this.ui.GetTreeToDisplay(timeStamp);
+            await this.renderer.DrawAsync(tree, size);
         }
         catch (Exception ex)
         {

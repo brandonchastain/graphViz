@@ -6,34 +6,38 @@ namespace GraphViz;
 
 public class VizUI
 {
-    private const int nodes = 50;
-    private const int nullProbPct = 30;
     private readonly Random random;
     private Tree<int?> tree;
 
-    public VizUI()
+    public VizUI(int nodeCount)
     {
+        this.NodeCount = nodeCount;
         this.random = new Random();
     }
+
+    public int NodeCount { get; set; }
+    public int NullProbabilityPct { get; set; }
 
     public void Refresh()
     {
         this.tree = null;
     }
 
-    public Tree<int?> GetTreeToDisplay(DateTimeOffset timestamp)
+    public (Tree<int?>, int size) GetTreeToDisplay(DateTimeOffset timestamp)
     {
         if (this.tree != null)
         {
-            return this.tree;
+            return (this.tree, this.NodeCount);
         }
 
         var data = new List<int?>();
 
-        for (int i = 0; i < nodes; i++)
+        for (int i = 0; i < NodeCount; i++)
         {
+            var log = Math.Ceiling(Math.Log2(i));
             int r = this.random.Next(100);
-            if (r < nullProbPct && i > 0)
+
+            if (i > 0 && r < NullProbabilityPct * log)
             {
                 data.Add(null);
             }
@@ -43,7 +47,7 @@ public class VizUI
             }
         }
 
-        this.tree = new Tree<int?>(data.ToArray());
-        return this.tree;
+        this.tree = new Tree<int?>([.. data]);
+        return (this.tree, NodeCount);
     }
 }
