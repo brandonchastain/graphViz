@@ -1,35 +1,23 @@
 using System;
 using System.Threading.Tasks;
-using Core;
 
-namespace GraphViz;
+namespace Core;
 
-public class VizUI
+public class TreeBuilder
 {
     private readonly Random random;
-    private Tree<int?> tree;
 
-    public VizUI(int nodeCount)
+    public TreeBuilder(uint nodeCount)
     {
         this.NodeCount = nodeCount;
         this.random = new Random();
     }
 
-    public int NodeCount { get; set; }
-    public int NullProbabilityPct { get; set; }
+    public uint NodeCount { get; set; }
+    public uint NullProbabilityPct { get; set; }
 
-    public void Refresh()
+    public (Tree<int?>, uint size) Generate()
     {
-        this.tree = null;
-    }
-
-    public (Tree<int?>, int size) GetTreeToDisplay(DateTimeOffset timestamp)
-    {
-        if (this.tree != null)
-        {
-            return (this.tree, this.NodeCount);
-        }
-
         var data = new List<int?>();
 
         for (int i = 0; i < NodeCount; i++)
@@ -47,7 +35,7 @@ public class VizUI
             }
         }
 
-        this.tree = new Tree<int?>([.. data]);
-        return (this.tree, NodeCount);
+        var tree = new Tree<int?>([.. data]);
+        return (tree, NodeCount);
     }
 }

@@ -19,9 +19,9 @@ public class Tree<T>
 
     public TreeNode<T>? Root { get; set; }
 
-    public int GetSize()
+    public uint GetSize()
     {
-        int size = 0;
+        uint size = 0;
         this.Root?.Visit(_ => size += 1);
         return size;
     }
@@ -41,12 +41,14 @@ public class Tree<T>
             if (nextLeft < data.Length && data[nextLeft] != null)
             {
                 parent.Left = new TreeNode<T>(data[nextLeft]);
+                parent.Left.Parent = parent;
                 q.Push(new (parent.Left, nextLeft));
             }
 
             if (nextRight < data.Length && data[nextRight] != null)
             {
                 parent.Right = new TreeNode<T>(data[nextRight]);
+                parent.Right.Parent = parent;
                 q.Push(new (parent.Right, nextRight));
             }
         }

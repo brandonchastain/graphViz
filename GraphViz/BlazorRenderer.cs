@@ -2,23 +2,35 @@ namespace GraphViz;
 
 using System;
 using System.ComponentModel.DataAnnotations;
-using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
 using Blazor.Extensions.Canvas.Canvas2D;
 using Core;
+using Microsoft.AspNetCore.Components.Forms;
 
 public class BlazorRenderer : IRenderer
 {
+    private const uint TileSize = 20;
     private Canvas2DContext canvas;
     private long width;
     private long height;
-    private Tree<int?> renderedTree;
+
+    /// <summary>
+    /// Map of XY coordinates to the corresponding TreeNode at that location.
+    /// </summary>
+    private Dictionary<(long, long), TreeNode<int?>> coordsToNode;
+
+    /// <summary>
+    /// Map of TreeNodes to their XY coordinates.
+    /// </summary>
+    private Dictionary<TreeNode<int?>, (long, long)> nodeToCoords;
 
     public BlazorRenderer(Canvas2DContext canvas, long width, long height)
     {
         this.canvas = canvas ?? throw new ArgumentNullException(nameof(canvas));
         this.width = width;
         this.height = height;
+        this.coordsToNode = new Dictionary<(long, long), TreeNode<int?>>();
+        this.nodeToCoords = new Dictionary<TreeNode<int?>, (long, long)>();
     }
 
     public bool IsArtModeEnabled { get; private set; }
@@ -29,32 +41,61 @@ public class BlazorRenderer : IRenderer
         await this.canvas.ClearRectAsync(0, 0, 10000, 10000);
     }
 
-    public async Task DrawAsync(Tree<int?> tree, int size)
+    public async Task DrawAsync(Tree<int?> tree, uint size)
     {
-        if (tree == this.renderedTree)
-        {
-            return;
-        }
-
         await this.canvas.BeginBatchAsync();
+
         if (!IsArtModeEnabled)
         {
             await this.canvas.ClearRectAsync(0, 0, 10000, 10000);
+            // await this.DrawGrid();
         }
 
         await this.canvas.SetFontAsync("bold 14pt Arial");
-        await DrawNode(tree.Root!, tree.GetSize(), 600, 50, 1);
-        await this.canvas.EndBatchAsync();
+        await DrawNode(tree.Root!, size, 600, 50, 1);
 
-        this.renderedTree = tree;
+        await this.canvas.EndBatchAsync();
     }
 
-    private async Task DrawNode(TreeNode<int?> node, int size, int x, int y, int depth)
+    private async Task DrawGrid()
+    {
+        //await this.RenderError($"width: {this.width} height: {this.height}");
+        uint tileSize = TileSize;
+
+        try
+        {
+            for (uint i = 0; i <= this.width; i += tileSize)
+            {
+                // await this.RenderError($"i <= this.width {i <= this.width}");
+                await this.canvas.SetStrokeStyleAsync("white");
+                await this.canvas.BeginPathAsync();
+                await this.canvas.MoveToAsync(i, 0);
+                await this.canvas.LineToAsync(i, this.height);
+                await this.canvas.StrokeAsync();
+            }
+
+            for (uint i = 0; i <= this.height; i += tileSize)
+            {
+                // await this.RenderError($"i <= this.width {i <= this.width}");
+                await this.canvas.SetStrokeStyleAsync("white");
+                await this.canvas.BeginPathAsync();
+                await this.canvas.MoveToAsync(0, i);
+                await this.canvas.LineToAsync(this.width, i);
+                await this.canvas.StrokeAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            await this.RenderError(ex.ToString());
+        }
+    }
+
+    private async Task DrawNode(TreeNode<int?> node, uint size, long x, long y, uint depth)
     {
         double log = Math.Log2(size);
-        int tileSize = 20;
-        int yOffset = 50;
-        int xOffset = (int)(tileSize * 3 * Math.Ceiling(log) / depth);
+        uint tileSize = TileSize;
+        uint yOffset = 2 * TileSize;
+        uint xOffset = (uint)(tileSize * 3 * Math.Ceiling(log) / depth);
 
         if (node == null)
         {
@@ -63,12 +104,18 @@ public class BlazorRenderer : IRenderer
 
             return;
         }
+            
+        // snap to nearest multiple of TileSize
+        long nodeX = x - (x % TileSize);
+        long nodeY = y - (y % TileSize);
+        this.coordsToNode.TryAdd((nodeX, nodeY), node);
+        this.nodeToCoords.TryAdd(node, (nodeX, nodeY));
 
         // this node
         if (!IsArtModeEnabled)
         {
             await this.canvas.SetFillStyleAsync("#FFFFFF");
-            await this.canvas.FillRectAsync(x - tileSize / 2, y - tileSize / 2, tileSize, tileSize);
+            await this.canvas.FillRectAsync(nodeX, nodeY, tileSize, tileSize);
         }
 
         await this.canvas.SetFillStyleAsync("#000000");
@@ -95,6 +142,27 @@ public class BlazorRenderer : IRenderer
         // recurse
         await DrawNode(node.Left, size, x - xOffset, y + yOffset, depth + 1);
         await DrawNode(node.Right, size, x + xOffset, y + yOffset, depth + 1);
+    }
+
+    public async ValueTask DrawPathToRoot(long x, long y)
+    {
+        long nodeX = x - (x % TileSize);
+        long nodeY = y - (y % TileSize);
+        var key = (nodeX, nodeY);
+
+        if (!this.coordsToNode.ContainsKey(key))
+        {
+            return;
+        }
+
+        var node = this.coordsToNode[key];
+        var path = node.GetPathToRoot();
+        foreach (var pnode in path)
+        {
+            (var px, var py) = this.nodeToCoords[pnode];
+            await this.canvas.SetFillStyleAsync("#00FFFF");
+            await this.canvas.FillRectAsync(px, py, TileSize, TileSize);
+        }
     }
 
     public async ValueTask RenderError(string msg)

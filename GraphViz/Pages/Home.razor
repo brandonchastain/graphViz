@@ -5,6 +5,7 @@
 @using Microsoft.JSInterop
 @using System.Text
 @using GraphViz
+@using Core
 
 @inject IJSRuntime JsRuntime
 
@@ -21,19 +22,26 @@
         class=""
         tabindex="1"
         @onclick="Onclick"
+        @onmouseover="Onmouseover"
         style="margin: auto; overflow: auto; height: 10000px; width: 10000px; -webkit-tap-highlight-color:transparent; outline:none;">
         <BECanvas @ref="_canvasReference"></BECanvas>
     </div>
 
 @code {
     protected BECanvasComponent _canvasReference;
-    private Canvas2DContext ctx;
     private BlazorRenderer renderer;
-    private VizUI ui;
-    private bool crashed = false;
+    private TreeBuilder ui;
 
-    private int NodeCount { get; set; } = 20;
-    private int NullProbPct { get; set; } = 10;
+    private Tree<int?> tree;
+    private uint treeSize;
+
+    private long width;
+    private long height;
+    private double mouseOffsetX;
+    private double mouseOffsetY;
+
+    private uint NodeCount { get; set; } = 20;
+    private uint NullProbPct { get; set; } = 10;
     private bool IsArtModeEnabled { get; set; } = false;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -43,13 +51,15 @@
             return;
         }
 
-        this.ctx = await _canvasReference.CreateCanvas2DAsync();
-        this.renderer = new BlazorRenderer(this.ctx, _canvasReference.Width, _canvasReference.Height);
-        this.ui = new VizUI(NodeCount);
-        await OnSubmit();
-
+        var ctx = await _canvasReference.CreateCanvas2DAsync();
         await JsRuntime.InvokeAsync<object>("initRenderJS", DotNetObjectReference.Create(this));
         await base.OnInitializedAsync();
+
+        this.renderer = new BlazorRenderer(ctx, this.width, this.height);
+        this.ui = new TreeBuilder(NodeCount);
+
+        // generate first tree
+        await OnSubmit();
     }
 
     [JSInvokable]
@@ -57,36 +67,52 @@
     {
         ui.NodeCount = NodeCount;
         ui.NullProbabilityPct = NullProbPct;
-
+        this.mouseOffsetX = -1;
+        this.mouseOffsetY = -1;
         await renderer.SetArtMode(IsArtModeEnabled);
-
-        ui.Refresh();
+        BuildTree();
     }
 
     [JSInvokable]
-    public void Onclick()
+    public void Onclick(MouseEventArgs e)
     {
-        ui.Refresh();
+        this.mouseOffsetX = e.OffsetX;
+        this.mouseOffsetY = e.OffsetY;
+    }
+
+    [JSInvokable]
+    public void Onmouseover(MouseEventArgs e)
+    {
+        this.mouseOffsetX = e.OffsetX;
+        this.mouseOffsetY = e.OffsetY;
+    }
+
+    private void BuildTree()
+    {
+        (var tree, var size) = this.ui.Generate();
+        this.tree = tree;
+        this.treeSize = size;
     }
 
     [JSInvokable]
     public async ValueTask RenderInBlazor(float ts)
     {
-        if (crashed)
-        {
-            return;
-        }
-
         try
         {
-            var timeStamp = DateTimeOffset.FromUnixTimeMilliseconds((long)ts);
-            (var tree, var size) = this.ui.GetTreeToDisplay(timeStamp);
-            await this.renderer.DrawAsync(tree, size);
+            // var timeStamp = DateTimeOffset.FromUnixTimeMilliseconds((long)ts);
+            await this.renderer.DrawAsync(tree, treeSize);
+            await this.renderer.DrawPathToRoot((long)this.mouseOffsetX, (long)this.mouseOffsetY);
         }
         catch (Exception ex)
         {
-            crashed = true;
             await this.renderer.RenderError(ex.ToString());
         }
+    }
+
+    [JSInvokable]
+    public void ResizeInBlazor(long width, long height)
+    {
+        this.width = width;
+        this.height = height;
     }
 }
